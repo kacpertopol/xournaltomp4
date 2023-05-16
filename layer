@@ -1,0 +1,233 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+import subprocess
+import sys
+import re
+
+# horizontal resolution of images
+HRES = 1920
+# frame rate
+FRATE = 48
+# frames to pause for short strokes
+FSHORT = 4
+
+def getUnzipped(path):
+    return subprocess.run(["zcat" , path] , capture_output = True).stdout.decode("utf-8")
+
+def getPagesRange(unzipped):
+    return [x.span() for x in re.finditer('<page.*?</page>' , unzipped , flags = re.DOTALL)]
+
+def getLayersRange(unzipped):
+    return [x.span() for x in re.finditer('<layer>.*?</layer>' , unzipped , flags = re.DOTALL)]
+
+def getStrokesRange(unzipped):
+    return [x.span() for x in re.finditer('<stroke.*?</stroke>' , unzipped , flags = re.DOTALL)]
+
+def filterInRange(r , l):
+    return [x for x in l if x[0] >= r[0] and x[1] <= r[1]]
+
+def getPageIterator(unzipped):
+    pages = getPagesRange(unzipped)
+    return range(len(pages))
+
+def getLayerIterator(unzipped , p):
+    pages = getPagesRange(unzipped)
+    layers = getLayersRange(unzipped)
+    return range(len(filterInRange(pages[p] , layers)))
+
+def getStrokeIterator(unzipped , p , l):
+    pages = getPagesRange(unzipped)
+    layers = getLayersRange(unzipped)
+    strokes = getStrokesRange(unzipped)
+    return range(len(filterInRange(filterInRange(pages[p] , layers)[l] , strokes)))
+
+def splitStrokePath(stroke):
+    width = (re.search('width="(.*?)"', stroke).group(1)).split()
+    points = (re.search('>(.*?)<', stroke).group(1)).split()
+    result = []
+    if len(width) < 4:
+        return [stroke for _ in range(FSHORT)]
+    else:
+        for i in range(4 , len(width)):
+            after = re.sub('width="(.*?)"', 'width="'+" ".join(width[: i]) + '"' , stroke)
+            after = re.sub('>(.*?)<', '>' + " ".join(points[: 2 * i]) + '<' , after)
+            result.append(after)
+        return result
+
+def getSingleStroke(unzipped , p , l , s):
+
+    pages = getPagesRange(unzipped)
+    layers = getLayersRange(unzipped)
+    strokes = getStrokesRange(unzipped)
+
+    preambuleEnd = pages[0][0]
+    postambuleStart = pages[-1][1]
+
+    layersInPage = filterInRange(pages[p] , layers)
+    pagePreambuleStart , pagePreambuleEnd = pages[p][0] , layersInPage[0][0]
+    pagePostambuleStart , pagePostambuleEnd = layersInPage[-1][1] , pages[p][1]
+    
+    strokesInLayer = filterInRange(layersInPage[l] , strokes)
+    layerPreambuleStart , layerPreambuleEnd = layersInPage[l][0] , strokesInLayer[0][0] 
+    layerPostambuleStart , layerPostambuleEnd = strokesInLayer[-1][1] , layersInPage[l][1]
+
+    strokeBeforeStart = strokesInLayer[s - 1][1] if s - 1 >=0 else strokesInLayer[s][0]
+    strokeBeforeEnd = strokesInLayer[s][0]
+    
+    strokeAfterStart = strokesInLayer[s][1]
+    strokeAfterEnd = strokesInLayer[s + 1][0] if s + 1 < len(strokesInLayer) else strokesInLayer[s][1]
+    
+    startStroke , endStroke = filterInRange(filterInRange(pages[p] , layers)[l] , strokes)[s]
+
+    preambule = \
+                unzipped[: preambuleEnd] + \
+                unzipped[pagePreambuleStart : pagePreambuleEnd] + \
+                unzipped[layerPreambuleStart : layerPreambuleEnd] + \
+                unzipped[strokeBeforeStart : strokeBeforeEnd]
+
+    postambule = \
+                unzipped[strokeAfterStart : strokeAfterEnd] + \
+                unzipped[layerPostambuleStart : layerPostambuleEnd] + \
+                unzipped[pagePostambuleStart : pagePostambuleEnd] + \
+                unzipped[postambuleStart :] 
+
+    single = preambule + unzipped[startStroke : endStroke] + postambule
+
+    return [single]
+
+def getStrokeAndBefore(unzipped , p , l , s):
+
+    pages = getPagesRange(unzipped)
+    layers = getLayersRange(unzipped)
+    strokes = getStrokesRange(unzipped)
+
+    preambuleEnd = pages[0][0]
+    postambuleStart = pages[-1][1]
+
+    layersInPage = filterInRange(pages[p] , layers)
+    #pagePreambuleStart , pagePreambuleEnd = pages[p][0] , layersInPage[0][0]
+    pagePostambuleStart , pagePostambuleEnd = layersInPage[-1][1] , pages[p][1]
+    
+    strokesInLayer = filterInRange(layersInPage[l] , strokes)
+    #layerPreambuleStart , layerPreambuleEnd = layersInPage[l][0] , strokesInLayer[0][0] 
+    layerPostambuleStart , layerPostambuleEnd = strokesInLayer[-1][1] , layersInPage[l][1]
+
+    #strokeBeforeStart = strokesInLayer[s - 1][1] if s - 1 >=0 else strokesInLayer[s][0]
+    #strokeBeforeEnd = strokesInLayer[s][0]
+    
+    strokeAfterStart = strokesInLayer[s][1]
+    strokeAfterEnd = strokesInLayer[s + 1][0] if s + 1 < len(strokesInLayer) else strokesInLayer[s][1]
+    
+    startStroke , endStroke = filterInRange(filterInRange(pages[p] , layers)[l] , strokes)[s]
+
+    prePage = pages[0][0]
+    postPage = pages[p - 1][1] if p - 1 >= 0 else pages[0][0]
+    
+    #preambule = \
+    #            unzipped[: preambuleEnd] + \
+    #            unzipped[pagePreambuleStart : pagePreambuleEnd] + \
+    #            unzipped[layerPreambuleStart : layerPreambuleEnd] + \
+    #            unzipped[strokeBeforeStart : strokeBeforeEnd]
+
+    preambule = unzipped[: prePage] + unzipped[postPage : startStroke]
+
+    postambule = \
+                unzipped[strokeAfterStart : strokeAfterEnd] + \
+                unzipped[layerPostambuleStart : layerPostambuleEnd] + \
+                unzipped[pagePostambuleStart : pagePostambuleEnd] + \
+                unzipped[postambuleStart :] 
+
+    splitStrokePath(unzipped[startStroke : endStroke])
+
+    splitS = splitStrokePath(unzipped[startStroke : endStroke])
+
+    #single = preambule + unzipped[startStroke : endStroke] + postambule
+
+    result = list(map(lambda x : preambule + x + postambule , splitS))
+
+    return result
+
+def splitStrokes(inputpath , outputpath):
+
+    unzipped = getUnzipped(inputpath)
+
+    pages = getPagesRange(unzipped)
+    layers = getLayersRange(unzipped)
+    strokes = getStrokesRange(unzipped)
+
+    pgs = []
+
+    for ip in getPageIterator(unzipped):
+        for il in getLayerIterator(unzipped , ip):
+            for si in getStrokeIterator(unzipped , ip , il):
+                #pgs += getSingleStroke(unzipped , ip , il , si)  
+                pgs += getStrokeAndBefore(unzipped , ip , il , si)  
+
+    if not os.path.exists(outputpath):
+        os.mkdir(outputpath)
+
+    for ip in range(len(pgs)):
+
+        nme = os.path.join(outputpath , str(ip).zfill(10))
+        print(ip , '/' , len(pgs))
+
+        with open(nme , "w") as f:
+            f.write(pgs[ip])
+
+        subprocess.run(["cp" , nme , nme + ".unzipped"])
+        subprocess.run(["gzip" , nme])
+        subprocess.run(["mv" , nme + ".gz" , nme + ".xopp"])
+        subprocess.run(["xournalpp" , nme + ".xopp" , "--create-img=" + os.path.join(nme) + ".png" , "--export-png-width=" + str(HRES)])
+    pwd = os.getcwd()
+    os.chdir(outputpath)
+    subprocess.run(["ffmpeg" , "-r" , str(FRATE) , "-i" , "%10d.png" , "-pix_fmt" , "yuv420p" , os.path.basename(outputpath) + ".mp4"])
+    os.chdir(pwd)
+
+if(__name__ == "__main__"):
+    parser = argparse.ArgumentParser(description = "Turn xojp file into a mpeg.")
+    parser.add_argument("input" , help = "Input file.")
+    parser.add_argument("output" , help = "Output directory.")
+    parser.add_argument("--hres" , "-r" , help = "Horizontal resulution, by default 1920.")
+    parser.add_argument("--frate" , "-f" , help = "Frame rate, by default 48.")
+    parser.add_argument("--pause" , "-p" , help = "Frames to pause on short strokes. By default 4.")
+    args = parser.parse_args()
+
+    if(args.hres is not None):
+        HRES = int(args.hres)
+
+    if(args.frate is not None):
+        FRATE = int(args.frate)
+
+    if(args.pause is not None):
+        FSHORT = int(args.pause)
+
+    if not os.path.exists(args.output):
+        os.makedirs(args.output)
+
+    if not subprocess.run(["xournalpp" , "--version"] , capture_output = True).returncode == 0:
+        print("xournalpp not available, exiting.")
+        sys.exit(1)
+    
+    if not subprocess.run(["zcat" , "--version"] , capture_output = True).returncode == 0:
+        print("zcat not available, exiting.")
+        sys.exit(1)
+
+    if not subprocess.run(["gzip" , "--version"] , capture_output = True).returncode == 0:
+        print("gzip not available, exiting.")
+        sys.exit(1)
+ 
+    if not subprocess.run(["ffmpeg" , "-version"] , capture_output = True).returncode == 0:
+        print("ffmpeg not available, exiting.")
+        sys.exit(1)   
+    unzipped = subprocess.run(["zcat" , args.input] , capture_output = True)
+
+    if not unzipped.returncode == 0:
+        print("problem unpacking " + args.input + ", exiting.")
+        sys.exit(1)
+	
+    splitStrokes(args.input, args.output) 
+
+
+
