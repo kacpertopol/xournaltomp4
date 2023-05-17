@@ -12,6 +12,8 @@ HRES = 1920
 FRATE = 48
 # frames to pause for short strokes
 FSHORT = 4
+# frames to pause for images
+FIMAGES = 24
 
 def getUnzipped(path):
     return subprocess.run(["zcat" , path] , capture_output = True).stdout.decode("utf-8")
@@ -23,7 +25,7 @@ def getLayersRange(unzipped):
     return [x.span() for x in re.finditer('<layer>.*?</layer>' , unzipped , flags = re.DOTALL)]
 
 def getStrokesRange(unzipped):
-    return [x.span() for x in re.finditer('<stroke.*?</stroke>' , unzipped , flags = re.DOTALL)]
+    return [x.span() for x in re.finditer('<stroke.*?</stroke>|<image.*?</image>' , unzipped , flags = re.DOTALL)]
 
 def filterInRange(r , l):
     return [x for x in l if x[0] >= r[0] and x[1] <= r[1]]
@@ -44,17 +46,20 @@ def getStrokeIterator(unzipped , p , l):
     return range(len(filterInRange(filterInRange(pages[p] , layers)[l] , strokes)))
 
 def splitStrokePath(stroke):
-    width = (re.search('width="(.*?)"', stroke).group(1)).split()
-    points = (re.search('>(.*?)<', stroke).group(1)).split()
-    result = []
-    if len(width) < 4:
-        return [stroke for _ in range(FSHORT)]
+    if(not ("</image>" in stroke)):
+        width = (re.search('width="(.*?)"', stroke).group(1)).split()
+        points = (re.search('>(.*?)<', stroke).group(1)).split()
+        result = []
+        if len(width) < 4:
+            return [stroke for _ in range(FSHORT)]
+        else:
+            for i in range(4 , len(width)):
+                after = re.sub('width="(.*?)"', 'width="'+" ".join(width[: i]) + '"' , stroke)
+                after = re.sub('>(.*?)<', '>' + " ".join(points[: 2 * i]) + '<' , after)
+                result.append(after)
+            return result
     else:
-        for i in range(4 , len(width)):
-            after = re.sub('width="(.*?)"', 'width="'+" ".join(width[: i]) + '"' , stroke)
-            after = re.sub('>(.*?)<', '>' + " ".join(points[: 2 * i]) + '<' , after)
-            result.append(after)
-        return result
+        return [stroke for _ in range(FIMAGES)]
 
 def getSingleStroke(unzipped , p , l , s):
 
@@ -168,18 +173,43 @@ def splitStrokes(inputpath , outputpath):
     if not os.path.exists(outputpath):
         os.mkdir(outputpath)
 
+    out , err = [] , []
+
     for ip in range(len(pgs)):
 
         nme = os.path.join(outputpath , str(ip).zfill(10))
-        print(ip , '/' , len(pgs))
+    
+        sys.stdout.write("\r")
+        sys.stdout.write(str(ip) + " / " + str(len(pgs)))
 
         with open(nme , "w") as f:
             f.write(pgs[ip])
 
-        subprocess.run(["cp" , nme , nme + ".unzipped"])
-        subprocess.run(["gzip" , nme])
-        subprocess.run(["mv" , nme + ".gz" , nme + ".xopp"])
-        subprocess.run(["xournalpp" , nme + ".xopp" , "--create-img=" + os.path.join(nme) + ".png" , "--export-png-width=" + str(HRES)])
+        out.append("- frame : " + str(ip) + " / " + str(len(pgs)))
+        err.append("- frame : " + str(ip) + " / " + str(len(pgs)))
+        r = subprocess.run(["cp" , nme , nme + ".unzipped"] , capture_output = True)
+        out.append(r.stdout.decode('utf-8'))
+        err.append(r.stderr.decode('utf-8'))
+        r = subprocess.run(["gzip" , nme] , capture_output = True)
+        out.append(r.stdout.decode('utf-8'))
+        err.append(r.stderr.decode('utf-8'))
+        r = subprocess.run(["mv" , nme + ".gz" , nme + ".xopp"] , capture_output = True)
+        out.append(r.stdout.decode('utf-8'))
+        err.append(r.stderr.decode('utf-8'))
+        r = subprocess.run(["xournalpp" , nme + ".xopp" , "--create-img=" + os.path.join(nme) + ".png" , "--export-png-width=" + str(HRES)] , capture_output = True)
+        out.append(r.stdout.decode('utf-8'))
+        err.append(r.stderr.decode('utf-8'))
+
+    with open(os.path.join(outputpath , "out") , 'a') as f:
+        f.write("#\n")
+        f.write("\n".join(out))
+
+    with open(os.path.join(outputpath , "err") , 'a') as f:
+        f.write("#\n")
+        f.write("\n".join(err))
+
+    sys.stdout.write("\n")
+
     pwd = os.getcwd()
     os.chdir(outputpath)
     subprocess.run(["ffmpeg" , "-r" , str(FRATE) , "-i" , "%10d.png" , "-pix_fmt" , "yuv420p" , os.path.basename(outputpath) + ".mp4"])
@@ -192,6 +222,7 @@ if(__name__ == "__main__"):
     parser.add_argument("--hres" , "-r" , help = "Horizontal resulution, by default 1920.")
     parser.add_argument("--frate" , "-f" , help = "Frame rate, by default 48.")
     parser.add_argument("--pause" , "-p" , help = "Frames to pause on short strokes. By default 4.")
+    parser.add_argument("--images" , "-i" , help = "Frames to pause on images. By default 24.")
     args = parser.parse_args()
 
     if(args.hres is not None):
@@ -202,6 +233,9 @@ if(__name__ == "__main__"):
 
     if(args.pause is not None):
         FSHORT = int(args.pause)
+
+    if(args.images is not None):
+        FIMAGES = int(args.images)
 
     if not os.path.exists(args.output):
         os.makedirs(args.output)
@@ -221,13 +255,12 @@ if(__name__ == "__main__"):
     if not subprocess.run(["ffmpeg" , "-version"] , capture_output = True).returncode == 0:
         print("ffmpeg not available, exiting.")
         sys.exit(1)   
+
     unzipped = subprocess.run(["zcat" , args.input] , capture_output = True)
 
     if not unzipped.returncode == 0:
         print("problem unpacking " + args.input + ", exiting.")
         sys.exit(1)
-	
+    
     splitStrokes(args.input, args.output) 
-
-
 
