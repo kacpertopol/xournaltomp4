@@ -50,7 +50,7 @@ def splitStrokePath(stroke):
         width = (re.search('width="(.*?)"', stroke).group(1)).split()
         points = (re.search('>(.*?)<', stroke).group(1)).split()
         result = []
-        if len(width) < 4:
+        if len(width) < 2:
             return [stroke for _ in range(FSHORT)]
         else:
             for i in range(4 , len(width)):
@@ -210,10 +210,10 @@ def splitStrokes(inputpath , outputpath):
 
     sys.stdout.write("\n")
 
-    pwd = os.getcwd()
-    os.chdir(outputpath)
-    subprocess.run(["ffmpeg" , "-r" , str(FRATE) , "-i" , "%10d.png" , "-pix_fmt" , "yuv420p" , os.path.basename(outputpath) + ".mp4"])
-    os.chdir(pwd)
+    #pwd = os.getcwd()
+    #os.chdir(outputpath)
+    subprocess.run(["ffmpeg" , "-r" , str(FRATE) , "-i" , os.path.join(outputpath , "%10d.png") , "-pix_fmt" , "yuv420p" , outputpath + ".mp4"])
+    #os.chdir(pwd)
 
 if(__name__ == "__main__"):
     parser = argparse.ArgumentParser(description = "Turn xojp file into a mpeg.")
@@ -223,6 +223,7 @@ if(__name__ == "__main__"):
     parser.add_argument("--frate" , "-f" , help = "Frame rate, by default 48.")
     parser.add_argument("--pause" , "-p" , help = "Frames to pause on short strokes. By default 4.")
     parser.add_argument("--images" , "-i" , help = "Frames to pause on images. By default 24.")
+    parser.add_argument("--fchange" , "-c" , action = "store_true" , help = "Change framerate, does not calculate frames.")
     args = parser.parse_args()
 
     if(args.hres is not None):
@@ -236,9 +237,6 @@ if(__name__ == "__main__"):
 
     if(args.images is not None):
         FIMAGES = int(args.images)
-
-    if not os.path.exists(args.output):
-        os.makedirs(args.output)
 
     if not subprocess.run(["xournalpp" , "--version"] , capture_output = True).returncode == 0:
         print("xournalpp not available, exiting.")
@@ -256,11 +254,18 @@ if(__name__ == "__main__"):
         print("ffmpeg not available, exiting.")
         sys.exit(1)   
 
-    unzipped = subprocess.run(["zcat" , args.input] , capture_output = True)
-
-    if not unzipped.returncode == 0:
-        print("problem unpacking " + args.input + ", exiting.")
-        sys.exit(1)
+    if(args.fchange):
+        subprocess.run(["ffmpeg" , "-r" , str(FRATE) , "-i" , os.path.join(args.output , "%10d.png") , "-pix_fmt" , "yuv420p" , args.output + ".mp4"])
+    else:
     
-    splitStrokes(args.input, args.output) 
+        if not os.path.exists(args.output):
+            os.makedirs(args.output)
+        
+        unzipped = subprocess.run(["zcat" , args.input] , capture_output = True)
+
+        if not unzipped.returncode == 0:
+            print("problem unpacking " + args.input + ", exiting.")
+            sys.exit(1)
+        
+        splitStrokes(args.input, args.output) 
 
