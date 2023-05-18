@@ -6,6 +6,10 @@ import subprocess
 import sys
 import re
 
+# sauce : https://stackoverflow.com/questions/9808714/control-the-number-of-subprocesses-using-to-call-external-commands-in-python
+import concurrent.futures
+import multiprocessing
+
 # horizontal resolution of images
 HRES = 1920
 # frame rate
@@ -14,6 +18,8 @@ FRATE = 48
 FSHORT = 4
 # frames to pause for images
 FIMAGES = 24
+# number of parralel processes
+NPARALLEL = 4
 
 def getUnzipped(path):
     return subprocess.run(["zcat" , path] , capture_output = True).stdout.decode("utf-8")
@@ -61,46 +67,46 @@ def splitStrokePath(stroke):
     else:
         return [stroke for _ in range(FIMAGES)]
 
-def getSingleStroke(unzipped , p , l , s):
-
-    pages = getPagesRange(unzipped)
-    layers = getLayersRange(unzipped)
-    strokes = getStrokesRange(unzipped)
-
-    preambuleEnd = pages[0][0]
-    postambuleStart = pages[-1][1]
-
-    layersInPage = filterInRange(pages[p] , layers)
-    pagePreambuleStart , pagePreambuleEnd = pages[p][0] , layersInPage[0][0]
-    pagePostambuleStart , pagePostambuleEnd = layersInPage[-1][1] , pages[p][1]
-    
-    strokesInLayer = filterInRange(layersInPage[l] , strokes)
-    layerPreambuleStart , layerPreambuleEnd = layersInPage[l][0] , strokesInLayer[0][0] 
-    layerPostambuleStart , layerPostambuleEnd = strokesInLayer[-1][1] , layersInPage[l][1]
-
-    strokeBeforeStart = strokesInLayer[s - 1][1] if s - 1 >=0 else strokesInLayer[s][0]
-    strokeBeforeEnd = strokesInLayer[s][0]
-    
-    strokeAfterStart = strokesInLayer[s][1]
-    strokeAfterEnd = strokesInLayer[s + 1][0] if s + 1 < len(strokesInLayer) else strokesInLayer[s][1]
-    
-    startStroke , endStroke = filterInRange(filterInRange(pages[p] , layers)[l] , strokes)[s]
-
-    preambule = \
-                unzipped[: preambuleEnd] + \
-                unzipped[pagePreambuleStart : pagePreambuleEnd] + \
-                unzipped[layerPreambuleStart : layerPreambuleEnd] + \
-                unzipped[strokeBeforeStart : strokeBeforeEnd]
-
-    postambule = \
-                unzipped[strokeAfterStart : strokeAfterEnd] + \
-                unzipped[layerPostambuleStart : layerPostambuleEnd] + \
-                unzipped[pagePostambuleStart : pagePostambuleEnd] + \
-                unzipped[postambuleStart :] 
-
-    single = preambule + unzipped[startStroke : endStroke] + postambule
-
-    return [single]
+#def getSingleStroke(unzipped , p , l , s):
+#
+#    pages = getPagesRange(unzipped)
+#    layers = getLayersRange(unzipped)
+#    strokes = getStrokesRange(unzipped)
+#
+#    preambuleEnd = pages[0][0]
+#    postambuleStart = pages[-1][1]
+#
+#    layersInPage = filterInRange(pages[p] , layers)
+#    pagePreambuleStart , pagePreambuleEnd = pages[p][0] , layersInPage[0][0]
+#    pagePostambuleStart , pagePostambuleEnd = layersInPage[-1][1] , pages[p][1]
+#    
+#    strokesInLayer = filterInRange(layersInPage[l] , strokes)
+#    layerPreambuleStart , layerPreambuleEnd = layersInPage[l][0] , strokesInLayer[0][0] 
+#    layerPostambuleStart , layerPostambuleEnd = strokesInLayer[-1][1] , layersInPage[l][1]
+#
+#    strokeBeforeStart = strokesInLayer[s - 1][1] if s - 1 >=0 else strokesInLayer[s][0]
+#    strokeBeforeEnd = strokesInLayer[s][0]
+#    
+#    strokeAfterStart = strokesInLayer[s][1]
+#    strokeAfterEnd = strokesInLayer[s + 1][0] if s + 1 < len(strokesInLayer) else strokesInLayer[s][1]
+#    
+#    startStroke , endStroke = filterInRange(filterInRange(pages[p] , layers)[l] , strokes)[s]
+#
+#    preambule = \
+#                unzipped[: preambuleEnd] + \
+#                unzipped[pagePreambuleStart : pagePreambuleEnd] + \
+#                unzipped[layerPreambuleStart : layerPreambuleEnd] + \
+#                unzipped[strokeBeforeStart : strokeBeforeEnd]
+#
+#    postambule = \
+#                unzipped[strokeAfterStart : strokeAfterEnd] + \
+#                unzipped[layerPostambuleStart : layerPostambuleEnd] + \
+#                unzipped[pagePostambuleStart : pagePostambuleEnd] + \
+#                unzipped[postambuleStart :] 
+#
+#    single = preambule + unzipped[startStroke : endStroke] + postambule
+#
+#    return [single]
 
 def getStrokeAndBefore(unzipped , p , l , s):
 
@@ -112,16 +118,11 @@ def getStrokeAndBefore(unzipped , p , l , s):
     postambuleStart = pages[-1][1]
 
     layersInPage = filterInRange(pages[p] , layers)
-    #pagePreambuleStart , pagePreambuleEnd = pages[p][0] , layersInPage[0][0]
     pagePostambuleStart , pagePostambuleEnd = layersInPage[-1][1] , pages[p][1]
     
     strokesInLayer = filterInRange(layersInPage[l] , strokes)
-    #layerPreambuleStart , layerPreambuleEnd = layersInPage[l][0] , strokesInLayer[0][0] 
     layerPostambuleStart , layerPostambuleEnd = strokesInLayer[-1][1] , layersInPage[l][1]
 
-    #strokeBeforeStart = strokesInLayer[s - 1][1] if s - 1 >=0 else strokesInLayer[s][0]
-    #strokeBeforeEnd = strokesInLayer[s][0]
-    
     strokeAfterStart = strokesInLayer[s][1]
     strokeAfterEnd = strokesInLayer[s + 1][0] if s + 1 < len(strokesInLayer) else strokesInLayer[s][1]
     
@@ -130,12 +131,6 @@ def getStrokeAndBefore(unzipped , p , l , s):
     prePage = pages[0][0]
     postPage = pages[p - 1][1] if p - 1 >= 0 else pages[0][0]
     
-    #preambule = \
-    #            unzipped[: preambuleEnd] + \
-    #            unzipped[pagePreambuleStart : pagePreambuleEnd] + \
-    #            unzipped[layerPreambuleStart : layerPreambuleEnd] + \
-    #            unzipped[strokeBeforeStart : strokeBeforeEnd]
-
     preambule = unzipped[: prePage] + unzipped[postPage : startStroke]
 
     postambule = \
@@ -148,11 +143,37 @@ def getStrokeAndBefore(unzipped , p , l , s):
 
     splitS = splitStrokePath(unzipped[startStroke : endStroke])
 
-    #single = preambule + unzipped[startStroke : endStroke] + postambule
-
     result = list(map(lambda x : preambule + x + postambule , splitS))
 
     return result
+
+def worker(arg):
+   
+    ip , l , pg , outputpath = arg
+
+    out_w , err_w = [] , []
+
+    nme = os.path.join(outputpath , str(ip).zfill(10))
+
+    with open(nme , "w") as f:
+        f.write(pg)
+
+    out_w.append("- frame : " + str(ip))
+    err_w.append("- frame : " + str(ip))
+    r = subprocess.run(["cp" , nme , nme + ".unzipped"] , capture_output = True)
+    out_w.append(r.stdout.decode('utf-8'))
+    err_w.append(r.stderr.decode('utf-8'))
+    r = subprocess.run(["gzip" , nme] , capture_output = True)
+    out_w.append(r.stdout.decode('utf-8'))
+    err_w.append(r.stderr.decode('utf-8'))
+    r = subprocess.run(["mv" , nme + ".gz" , nme + ".xopp"] , capture_output = True)
+    out_w.append(r.stdout.decode('utf-8'))
+    err_w.append(r.stderr.decode('utf-8'))
+    r = subprocess.run(["xournalpp" , nme + ".xopp" , "--create-img=" + os.path.join(nme) + ".png" , "--export-png-width=" + str(HRES)] , capture_output = True)
+    out_w.append(r.stdout.decode('utf-8'))
+    err_w.append(r.stderr.decode('utf-8'))
+
+    return ("\n".join(out_w) , "\n".join(err_w))
 
 def splitStrokes(inputpath , outputpath):
 
@@ -167,7 +188,6 @@ def splitStrokes(inputpath , outputpath):
     for ip in getPageIterator(unzipped):
         for il in getLayerIterator(unzipped , ip):
             for si in getStrokeIterator(unzipped , ip , il):
-                #pgs += getSingleStroke(unzipped , ip , il , si)  
                 pgs += getStrokeAndBefore(unzipped , ip , il , si)  
 
     if not os.path.exists(outputpath):
@@ -175,30 +195,19 @@ def splitStrokes(inputpath , outputpath):
 
     out , err = [] , []
 
-    for ip in range(len(pgs)):
+    ip = 0
+    while(ip < len(pgs)):
+        worker_args = [(ip , len(pgs) , pgs[ip] , outputpath) for ip in range(ip , ip + NPARALLEL if ip + NPARALLEL < len(pgs) else len(pgs))] 
 
-        nme = os.path.join(outputpath , str(ip).zfill(10))
-    
+        with multiprocessing.Pool() as pool:
+            for result_out , result_err in pool.map(worker , worker_args):
+                out.append(result_out)
+                err.append(result_err)
+
         sys.stdout.write("\r")
         sys.stdout.write(str(ip) + " / " + str(len(pgs)))
 
-        with open(nme , "w") as f:
-            f.write(pgs[ip])
-
-        out.append("- frame : " + str(ip) + " / " + str(len(pgs)))
-        err.append("- frame : " + str(ip) + " / " + str(len(pgs)))
-        r = subprocess.run(["cp" , nme , nme + ".unzipped"] , capture_output = True)
-        out.append(r.stdout.decode('utf-8'))
-        err.append(r.stderr.decode('utf-8'))
-        r = subprocess.run(["gzip" , nme] , capture_output = True)
-        out.append(r.stdout.decode('utf-8'))
-        err.append(r.stderr.decode('utf-8'))
-        r = subprocess.run(["mv" , nme + ".gz" , nme + ".xopp"] , capture_output = True)
-        out.append(r.stdout.decode('utf-8'))
-        err.append(r.stderr.decode('utf-8'))
-        r = subprocess.run(["xournalpp" , nme + ".xopp" , "--create-img=" + os.path.join(nme) + ".png" , "--export-png-width=" + str(HRES)] , capture_output = True)
-        out.append(r.stdout.decode('utf-8'))
-        err.append(r.stderr.decode('utf-8'))
+        ip += NPARALLEL
 
     with open(os.path.join(outputpath , "out") , 'a') as f:
         f.write("#\n")
@@ -210,10 +219,7 @@ def splitStrokes(inputpath , outputpath):
 
     sys.stdout.write("\n")
 
-    #pwd = os.getcwd()
-    #os.chdir(outputpath)
     subprocess.run(["ffmpeg" , "-r" , str(FRATE) , "-i" , os.path.join(outputpath , "%10d.png") , "-pix_fmt" , "yuv420p" , outputpath + ".mp4"])
-    #os.chdir(pwd)
 
 if(__name__ == "__main__"):
     parser = argparse.ArgumentParser(description = "Turn xojp file into a mpeg.")
@@ -224,6 +230,7 @@ if(__name__ == "__main__"):
     parser.add_argument("--pause" , "-p" , help = "Frames to pause on short strokes. By default 4.")
     parser.add_argument("--images" , "-i" , help = "Frames to pause on images. By default 24.")
     parser.add_argument("--fchange" , "-c" , action = "store_true" , help = "Change framerate, does not calculate frames.")
+    parser.add_argument("--nthreads" , "-t" , help = "Number of threads to run in parallel. By default 4.")
     args = parser.parse_args()
 
     if(args.hres is not None):
@@ -237,6 +244,9 @@ if(__name__ == "__main__"):
 
     if(args.images is not None):
         FIMAGES = int(args.images)
+
+    if(args.nthreads is not None):
+        NPARALLEL = int(args.nthreads)
 
     if not subprocess.run(["xournalpp" , "--version"] , capture_output = True).returncode == 0:
         print("xournalpp not available, exiting.")
