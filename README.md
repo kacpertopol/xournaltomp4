@@ -100,6 +100,11 @@ options:
   --skipevery SKIPEVERY, -s SKIPEVERY
                         Take one stroke coordinate every copuple of coordinates for frames. By default 8.
 ```
+# tips
+
+The script takes a long time to render a video, even with multiple threads.
+In some case a good approach might be to break up the `xopp` document into 3-4 page parts,
+turning each part in to a separate videos and then concatenating them.
 
 # IMPORTANT
 
