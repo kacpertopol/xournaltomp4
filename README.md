@@ -16,7 +16,7 @@ In order to work the script requires:
 - `ffmpeg`
 - `xournalpp`
 
-Only strokes with varring width written using a pressure sensitive stylus will be animated.
+Only strokes with varrying width written using a pressure sensitive stylus will be animated.
 
 # usage
 
