@@ -3,8 +3,7 @@
 Turn files created by [xournalpp](https://xournalpp.github.io/) (with a `xopp` extension)
 into `mp4` videos.
 
-https://github.com/kacpertopol/xournaltomp4/assets/9459444/3f939673-c42e-4953-9045-11747cbc4072
-
+https://github.com/kacpertopol/xournaltomp4/assets/9459444/c54b93e5-ffc2-4dca-bd3a-d44d794547cf
 
 # requirements
 
