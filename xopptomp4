@@ -13,13 +13,19 @@ import multiprocessing
 # horizontal resolution of images
 HRES = 1920
 # frame rate
-FRATE = 48
+FRATE = 32
 # frames to pause for short strokes
 FSHORT = 4
 # frames to pause for images
-FIMAGES = 24
+FIMAGES = 32
 # number of parralel processes
 NPARALLEL = 4
+# frames to pause on end of stroke
+ENDPAUSE = 64
+# frames to pause on end of layer
+LAYERPAUSE = 32
+# skip stroke coordinates
+SKIPSTROKE = 8
 
 def getUnzipped(path):
     return subprocess.run(["zcat" , path] , capture_output = True).stdout.decode("utf-8")
@@ -59,7 +65,9 @@ def splitStrokePath(stroke):
         if len(width) < 2:
             return [stroke for _ in range(FSHORT)]
         else:
-            for i in range(4 , len(width)):
+            rng = list(range(len(width) - 1 , 1 , -SKIPSTROKE))
+            rng.reverse()
+            for i in rng:
                 after = re.sub('width="(.*?)"', 'width="'+" ".join(width[: i]) + '"' , stroke)
                 after = re.sub('>(.*?)<', '>' + " ".join(points[: 2 * i]) + '<' , after)
                 result.append(after)
@@ -123,6 +131,9 @@ def getStrokeAndBefore(unzipped , p , l , s):
     strokesInLayer = filterInRange(layersInPage[l] , strokes)
     layerPostambuleStart , layerPostambuleEnd = strokesInLayer[-1][1] , layersInPage[l][1]
 
+    end_of_page = (l == len(layersInPage) - 1) and (s == len(strokesInLayer) - 1)
+    end_of_layer = (s == len(strokesInLayer) - 1)
+
     strokeAfterStart = strokesInLayer[s][1]
     strokeAfterEnd = strokesInLayer[s + 1][0] if s + 1 < len(strokesInLayer) else strokesInLayer[s][1]
     
@@ -145,7 +156,14 @@ def getStrokeAndBefore(unzipped , p , l , s):
 
     result = list(map(lambda x : preambule + x + postambule , splitS))
 
-    return result
+    additional = []
+
+    if(end_of_page):
+        additional = [result[-1] for _ in range(ENDPAUSE)]
+    elif(end_of_layer):
+        additional = [result[-1] for _ in range(LAYERPAUSE)]
+
+    return result + additional
 
 def worker(arg):
    
@@ -231,6 +249,9 @@ if(__name__ == "__main__"):
     parser.add_argument("--images" , "-i" , help = "Frames to pause on images. By default 24.")
     parser.add_argument("--fchange" , "-c" , action = "store_true" , help = "Change framerate, does not calculate frames.")
     parser.add_argument("--nthreads" , "-t" , help = "Number of threads to run in parallel. By default 4.")
+    parser.add_argument("--endpause" , "-e" , help = "Frames to pause on end of page. By default 24.")
+    parser.add_argument("--layerpause" , "-l" , help = "Frames to pause on end of layer. By default 24.")
+    parser.add_argument("--skipevery" , "-s" , help = "Take one stroke coordinate every copuple of coordinates for frames. By default 1.")
     args = parser.parse_args()
 
     if(args.hres is not None):
@@ -248,6 +269,15 @@ if(__name__ == "__main__"):
     if(args.nthreads is not None):
         NPARALLEL = int(args.nthreads)
 
+    if(args.endpause is not None):
+        ENDPAUSE = int(args.endpause) 
+    
+    if(args.layerpause is not None):
+        LAYERPAUSE = int(args.layerpause) 
+
+    if(args.skipevery is not None):
+        SKIPSTROKE = int(args.skipevery) 
+    
     if not subprocess.run(["xournalpp" , "--version"] , capture_output = True).returncode == 0:
         print("xournalpp not available, exiting.")
         sys.exit(1)
