@@ -63,6 +63,9 @@ or
 $ xopptomp4 -h
 ```
 
-This provides a list of options with descriptions and default values.
+This provides a list of options with descriptions and default values:
+
+```
+```
 
 
