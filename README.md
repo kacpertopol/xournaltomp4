@@ -99,6 +99,8 @@ options:
                         Take one stroke coordinate every copuple of coordinates for frames. By default 8.
 ```
 
-# important
+# IMPORTANT
 
-This is a very short simple script. It might not work perfectly, please let me know of any issues using github's issue system.
+This is a very short simple script. It might not work perfectly, please let me know of any issues using github's issue system. 
+
+Please read the `LICENSE`.
