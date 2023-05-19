@@ -3,7 +3,7 @@
 Turn files created by [xournalpp](https://xournalpp.github.io/) (with a `xopp` extension)
 into `mp4` videos.
 
-[](sample1.mp4)
+[sample1](sample1.mp4)
 
 # requirements
 
