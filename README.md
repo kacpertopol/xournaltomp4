@@ -16,7 +16,7 @@ In order to work the script requires:
 - `ffmpeg`
 - `xournalpp`
 
-Only strokes written using a pressure sensitive stylus will be animated.
+Only strokes with varring width written using a pressure sensitive stylus will be animated.
 
 # usage
 
@@ -104,10 +104,10 @@ options:
 
 The script takes a long time to render a video, even with multiple threads.
 In some case a good approach might be to break up the `xopp` document into 3-4 page parts,
-turning each part in to a separate videos and then concatenating them.
+turning each part in to separate videos and then concatenating them.
 
 The script looks for strokes made using a pressure sensitive stylus and animates them.
-If lines and curves are creates with constant width, they will not be animated currently.
+If lines and curves are created with constant width, they will not be animated currently.
 Animating strokes with constant width might be something to add in the future.
 
 # IMPORTANT
