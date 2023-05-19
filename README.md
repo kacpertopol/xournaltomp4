@@ -16,6 +16,8 @@ In order to work the script requires:
 - `ffmpeg`
 - `xournalpp`
 
+Only strokes written using a pressure sensitive stylus will be animated.
+
 # usage
 
 Basic usage is for example:
