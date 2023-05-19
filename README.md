@@ -3,7 +3,7 @@
 Turn files created by [xournalpp](https://xournalpp.github.io/) (with a `xopp` extension)
 into `mp4` videos.
 
-[sample1](sample1.mp4)
+[<img src="sample1.mp4" width="50%">](https://github.com/kacpertopol/xournaltomp4/blob/main/sample1.mp4 "Now in Android: 55")
 
 # requirements
 
