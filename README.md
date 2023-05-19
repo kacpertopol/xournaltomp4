@@ -16,7 +16,7 @@ In order to work the script requires:
 - `xournalpp`
 
 Only strokes with varrying width written using a pressure sensitive stylus will be animated.
-Other objects will display all at once (there was only a limited amount of testing so please raport problems).
+Other objects will display all at once (there was only a limited amount of testing so please report problems).
 
 # usage
 
