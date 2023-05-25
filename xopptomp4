@@ -116,6 +116,60 @@ def splitStrokePath(stroke):
 #
 #    return [single]
 
+def getAnimStroke(unzipped , p , l , s):
+
+    pages = getPagesRange(unzipped)
+    layers = getLayersRange(unzipped)
+    strokes = getStrokesRange(unzipped)
+
+    preambuleEnd = pages[0][0]
+    postambuleStart = pages[-1][1]
+
+    layersInPage = filterInRange(pages[p] , layers)
+    pagePostambuleStart , pagePostambuleEnd = layersInPage[-1][1] , pages[p][1]
+    
+    strokesInLayer = filterInRange(layersInPage[l] , strokes)
+    layerPostambuleStart , layerPostambuleEnd = strokesInLayer[-1][1] , layersInPage[l][1]
+
+    end_of_page = (l == len(layersInPage) - 1) and (s == len(strokesInLayer) - 1)
+    end_of_layer = (s == len(strokesInLayer) - 1)
+
+    strokeAfterStart = strokesInLayer[s][1]
+    strokeAfterEnd = strokesInLayer[s + 1][0] if s + 1 < len(strokesInLayer) else strokesInLayer[s][1]
+    
+    startStroke , endStroke = filterInRange(filterInRange(pages[p] , layers)[l] , strokes)[s]
+
+    prePage = pages[0][0]
+    postPage = pages[p - 1][1] if p - 1 >= 0 else pages[0][0]
+
+    firstLayer = ""
+    if len(layersInPage) > 1:
+        firstLayer = unzipped[layersInPage[0][0] : layersInPage[0][1]]
+
+    if(l != 0):
+        preambule = unzipped[: prePage] + unzipped[postPage : layersInPage[0][0]] + firstLayer + unzipped[layersInPage[l][0] : strokesInLayer[s][0]]
+    else:
+        preambule = unzipped[: prePage] + unzipped[postPage : layersInPage[0][0]] + unzipped[layersInPage[l][0] : strokesInLayer[s][0]]
+
+    postambule = \
+                unzipped[strokeAfterStart : strokeAfterEnd] + \
+                unzipped[layerPostambuleStart : layerPostambuleEnd] + \
+                unzipped[pagePostambuleStart : pagePostambuleEnd] + \
+                unzipped[postambuleStart :] 
+
+    splitS = splitStrokePath(unzipped[startStroke : endStroke])
+
+    result = list(map(lambda x : preambule + x + postambule , splitS))
+
+    additional = []
+
+    if(end_of_page):
+        additional = [result[-1] for _ in range(ENDPAUSE)]
+    elif(end_of_layer):
+        additional = [result[-1] for _ in range(LAYERPAUSE)]
+
+    return result + additional
+
 def getStrokeAndBefore(unzipped , p , l , s):
 
     pages = getPagesRange(unzipped)
@@ -149,8 +203,6 @@ def getStrokeAndBefore(unzipped , p , l , s):
                 unzipped[layerPostambuleStart : layerPostambuleEnd] + \
                 unzipped[pagePostambuleStart : pagePostambuleEnd] + \
                 unzipped[postambuleStart :] 
-
-    splitStrokePath(unzipped[startStroke : endStroke])
 
     splitS = splitStrokePath(unzipped[startStroke : endStroke])
 
@@ -193,7 +245,7 @@ def worker(arg):
 
     return ("\n".join(out_w) , "\n".join(err_w))
 
-def splitStrokes(inputpath , outputpath):
+def splitStrokes(inputpath , outputpath , splitter = getStrokeAndBefore):
 
     unzipped = getUnzipped(inputpath)
 
@@ -206,7 +258,7 @@ def splitStrokes(inputpath , outputpath):
     for ip in getPageIterator(unzipped):
         for il in getLayerIterator(unzipped , ip):
             for si in getStrokeIterator(unzipped , ip , il):
-                pgs += getStrokeAndBefore(unzipped , ip , il , si)  
+                pgs += splitter(unzipped , ip , il , si)  
 
     if not os.path.exists(outputpath):
         os.mkdir(outputpath)
@@ -252,6 +304,7 @@ if(__name__ == "__main__"):
     parser.add_argument("--endpause" , "-e" , help = "Frames to pause on end of page. By default 64.")
     parser.add_argument("--layerpause" , "-l" , help = "Frames to pause on end of layer. By default 32.")
     parser.add_argument("--skipevery" , "-s" , help = "Take one stroke coordinate every copuple of coordinates for frames. By default 8.")
+    parser.add_argument("--animate" , "-a" , action = "store_true" , help = "Use different method for splitting presentation. Layers are not placed on top of one another but animated. One layer at a time, the first layer appears on all frames.")
     args = parser.parse_args()
 
     if(args.hres is not None):
@@ -306,6 +359,9 @@ if(__name__ == "__main__"):
         if not unzipped.returncode == 0:
             print("problem unpacking " + args.input + ", exiting.")
             sys.exit(1)
-        
-        splitStrokes(args.input, args.output) 
+       
+        if(not args.animate):
+            splitStrokes(args.input, args.output) 
+        else:
+            splitStrokes(args.input, args.output , splitter = getAnimStroke) 
 
