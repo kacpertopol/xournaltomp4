@@ -72,7 +72,7 @@ This provides a list of options with descriptions and default values:
 
 ```
 usage: xopptomp4 [-h] [--hres HRES] [--frate FRATE] [--pause PAUSE] [--images IMAGES] [--fchange] [--nthreads NTHREADS]
-                 [--endpause ENDPAUSE] [--layerpause LAYERPAUSE] [--skipevery SKIPEVERY]
+                 [--endpause ENDPAUSE] [--layerpause LAYERPAUSE] [--skipevery SKIPEVERY] [--animate]
                  input output
 
 Turn xojp file into a mpeg.
@@ -99,6 +99,8 @@ options:
                         Frames to pause on end of layer. By default 32.
   --skipevery SKIPEVERY, -s SKIPEVERY
                         Take one stroke coordinate every copuple of coordinates for frames. By default 8.
+  --animate, -a         Use different method for splitting presentation. Layers are not placed on top of one another but animated.
+                        One layer at a time, the first layer appears on all frames.
 ```
 # tips
 
