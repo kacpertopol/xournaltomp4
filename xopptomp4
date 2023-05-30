@@ -273,9 +273,8 @@ def splitStrokes(inputpath , outputpath , splitter = getStrokeAndBefore):
     for ip in getPageIterator(unzipped):
         for il in getLayerIterator(unzipped , ip):
             for si in getStrokeIterator(unzipped , ip , il):
-                sys.stdout.write("\r                                                                         ")
                 sys.stdout.write("\r")
-                sys.stdout.write("splitting ... page = " + str(ip) + " , layer = " + str(il) + " , stroke = " + str(si))
+                sys.stdout.write("splitting ... page = " + str(ip) + " , layer = " + str(il) + " , stroke = " + str(si) + "           ")
                 pgs += splitter(unzipped , ip , il , si)  
 
     if not os.path.exists(outputpath):
@@ -292,9 +291,8 @@ def splitStrokes(inputpath , outputpath , splitter = getStrokeAndBefore):
                 out.append(result_out)
                 err.append(result_err)
 
-        sys.stdout.write("\r                                                                         ")
         sys.stdout.write("\r")
-        sys.stdout.write("calculating frames ... frame = " + str(ip) + " , total = " + str(len(pgs)))
+        sys.stdout.write("calculating frames ... frame = " + str(ip) + " , total = " + str(len(pgs)) + "              ")
 
         ip += NPARALLEL
 
