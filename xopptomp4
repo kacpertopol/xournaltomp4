@@ -36,6 +36,8 @@ ENDPAUSE = 64
 LAYERPAUSE = 32
 # skip stroke coordinates
 SKIPSTROKE = 8
+# save frames in SVG format to save space
+FRAMEFORMAT = False
 
 def getUnzipped(path):
     return subprocess.run(["zcat" , path] , capture_output = True).stdout.decode("utf-8")
@@ -249,7 +251,10 @@ def worker(arg):
     r = subprocess.run(["mv" , nme + ".gz" , nme + ".xopp"] , capture_output = True)
     out_w.append(r.stdout.decode('utf-8'))
     err_w.append(r.stderr.decode('utf-8'))
-    r = subprocess.run(["xournalpp" , nme + ".xopp" , "--create-img=" + os.path.join(nme) + ".png" , "--export-png-width=" + str(HRES)] , capture_output = True)
+    if(not FRAMEFORMAT):
+        r = subprocess.run(["xournalpp" , nme + ".xopp" , "--create-img=" + os.path.join(nme) + ".png" , "--export-png-width=" + str(HRES)] , capture_output = True)
+    else:
+        r = subprocess.run(["xournalpp" , nme + ".xopp" , "--create-img=" + os.path.join(nme) + ".svg"] , capture_output = True)
     out_w.append(r.stdout.decode('utf-8'))
     err_w.append(r.stderr.decode('utf-8'))
 
@@ -268,6 +273,9 @@ def splitStrokes(inputpath , outputpath , splitter = getStrokeAndBefore):
     for ip in getPageIterator(unzipped):
         for il in getLayerIterator(unzipped , ip):
             for si in getStrokeIterator(unzipped , ip , il):
+                sys.stdout.write("\r                                                                         ")
+                sys.stdout.write("\r")
+                sys.stdout.write("splitting ... page = " + str(ip) + " , layer = " + str(il) + " , stroke = " + str(si))
                 pgs += splitter(unzipped , ip , il , si)  
 
     if not os.path.exists(outputpath):
@@ -284,8 +292,9 @@ def splitStrokes(inputpath , outputpath , splitter = getStrokeAndBefore):
                 out.append(result_out)
                 err.append(result_err)
 
+        sys.stdout.write("\r                                                                         ")
         sys.stdout.write("\r")
-        sys.stdout.write(str(ip) + " / " + str(len(pgs)))
+        sys.stdout.write("calculating frames ... frame = " + str(ip) + " , total = " + str(len(pgs)))
 
         ip += NPARALLEL
 
@@ -299,7 +308,10 @@ def splitStrokes(inputpath , outputpath , splitter = getStrokeAndBefore):
 
     sys.stdout.write("\n")
 
-    subprocess.run(["ffmpeg" , "-r" , str(FRATE) , "-i" , os.path.join(outputpath , "%10d.png") , "-pix_fmt" , "yuv420p" , outputpath + ".mp4"])
+    if(not FRAMEFORMAT):
+        subprocess.run(["ffmpeg" , "-r" , str(FRATE) , "-i" , os.path.join(outputpath , "%10d.png") , "-pix_fmt" , "yuv420p" , outputpath + ".mp4"])
+    else:
+        subprocess.run(["ffmpeg" , "-f" , "image2" , "-width" , str(HRES) , "-r" , str(FRATE) , "-i" , os.path.join(outputpath , "%10d.svg") , "-pix_fmt" , "yuv420p" , outputpath + ".mp4"])
 
 if(__name__ == "__main__"):
     parser = argparse.ArgumentParser(description = "Turn xojp file into a mpeg.")
@@ -315,6 +327,7 @@ if(__name__ == "__main__"):
     parser.add_argument("--layerpause" , "-l" , help = "Frames to pause on end of layer. By default 32.")
     parser.add_argument("--skipevery" , "-s" , help = "Take one stroke coordinate every copuple of coordinates for frames. By default 8.")
     parser.add_argument("--animate" , "-a" , action = "store_true" , help = "Use different method for splitting presentation. Layers are not placed on top of one another but animated. One layer at a time, the first layer appears on all frames.")
+    parser.add_argument("--svg" , "-v" , action = "store_true" , help = "Save frames in svg format to save space.")
     args = parser.parse_args()
 
     if(args.hres is not None):
@@ -340,6 +353,9 @@ if(__name__ == "__main__"):
 
     if(args.skipevery is not None):
         SKIPSTROKE = int(args.skipevery) 
+
+    if(args.svg):
+        FRAMEFORMAT = True
     
     if not subprocess.run(["xournalpp" , "--version"] , capture_output = True).returncode == 0:
         print("xournalpp not available, exiting.")
@@ -358,7 +374,10 @@ if(__name__ == "__main__"):
         sys.exit(1)   
 
     if(args.fchange):
-        subprocess.run(["ffmpeg" , "-r" , str(FRATE) , "-i" , os.path.join(args.output , "%10d.png") , "-pix_fmt" , "yuv420p" , args.output + ".mp4"])
+        if(not FRAMEFORMAT):
+            subprocess.run(["ffmpeg" , "-r" , str(FRATE) , "-i" , os.path.join(args.output , "%10d.png") , "-pix_fmt" , "yuv420p" , args.output + ".mp4"])
+        else:
+            subprocess.run(["ffmpeg" , "-f" , "image2" , "-width" , str(HRES) , "-r" , str(FRATE) , "-i" , os.path.join(outputpath , "%10d.svg") , "-pix_fmt" , "yuv420p" , outputpath + ".mp4"])
     else:
     
         if not os.path.exists(args.output):
