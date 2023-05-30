@@ -26,7 +26,7 @@ Basic usage is for example:
 $ xopptomp4 file.xopp videoname
 ```
 
-This will create a directory `videoname` that contains frames for the video 
+This will create a directory `videoname` that contains frames (`png` files by default) for the video  
 (and log files `out`, `err`)
 and a file `videoname.mp4` that contains the video.
 
@@ -72,10 +72,10 @@ This provides a list of options with descriptions and default values:
 
 ```
 usage: xopptomp4 [-h] [--hres HRES] [--frate FRATE] [--pause PAUSE] [--images IMAGES] [--fchange] [--nthreads NTHREADS]
-                 [--endpause ENDPAUSE] [--layerpause LAYERPAUSE] [--skipevery SKIPEVERY] [--animate]
+                 [--endpause ENDPAUSE] [--layerpause LAYERPAUSE] [--skipevery SKIPEVERY] [--animate] [--svg]
                  input output
 
-Turn xojp file into a mpeg.
+Turn xojp file into a mp4 video.
 
 positional arguments:
   input                 Input file.
@@ -101,12 +101,21 @@ options:
                         Take one stroke coordinate every copuple of coordinates for frames. By default 8.
   --animate, -a         Use different method for splitting presentation. Layers are not placed on top of one another but animated.
                         One layer at a time, the first layer appears on all frames.
+  --svg, -v             Save frames in svg format instead of png.
 ```
 # tips
 
 The script takes a long time to render a video, even with multiple threads.
 In some case a good approach might be to break up the `xopp` document into 3-4 page parts,
 turning each part in to separate videos and then concatenating them.
+
+Using the `--svg` option may decrease the time for frame calculating but
+the size of the directory with the frames will be larger. This
+is a bit counterintuative - `svg` is a vector fromat while `png` is a bitmap format -
+however the lossless compression for the `png` files workes very well in this case.
+After compressing both directories (eg using `zip`) the size of the archive with the
+`svg` files might be smaller. Using `svg` files might be beneficial for upscaling the
+video resolution.
 
 The script looks for strokes made using a pressure sensitive stylus and animates them.
 If lines and curves are created with constant width, they will not be animated currently.

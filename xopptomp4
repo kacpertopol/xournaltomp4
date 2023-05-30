@@ -325,7 +325,7 @@ if(__name__ == "__main__"):
     parser.add_argument("--layerpause" , "-l" , help = "Frames to pause on end of layer. By default 32.")
     parser.add_argument("--skipevery" , "-s" , help = "Take one stroke coordinate every copuple of coordinates for frames. By default 8.")
     parser.add_argument("--animate" , "-a" , action = "store_true" , help = "Use different method for splitting presentation. Layers are not placed on top of one another but animated. One layer at a time, the first layer appears on all frames.")
-    parser.add_argument("--svg" , "-v" , action = "store_true" , help = "Save frames in svg format to save space.")
+    parser.add_argument("--svg" , "-v" , action = "store_true" , help = "Save frames in svg format instead of png.")
     args = parser.parse_args()
 
     if(args.hres is not None):
