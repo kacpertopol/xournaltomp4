@@ -6,6 +6,16 @@ import subprocess
 import sys
 import re
 
+# why not a xml parser?
+#
+# In some previous versions using a parser
+# resultes in expressions of type
+# <... a = 1 b = 2>
+# being changed into
+# <... b = 2 a = 1>
+# Xournal did not like this (I'm not sure if this is the case still).
+# Instead the script uses string manipulation.
+
 # sauce : https://stackoverflow.com/questions/9808714/control-the-number-of-subprocesses-using-to-call-external-commands-in-python
 import concurrent.futures
 import multiprocessing
