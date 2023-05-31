@@ -38,6 +38,8 @@ LAYERPAUSE = 32
 SKIPSTROKE = 8
 # save frames in SVG format to save space
 FRAMEFORMAT = False
+# wait times
+WAITTIMES = {}
 
 def getUnzipped(path):
     return subprocess.run(["zcat" , path] , capture_output = True).stdout.decode("utf-8")
@@ -128,7 +130,7 @@ def splitStrokePath(stroke):
 #
 #    return [single]
 
-def getAnimStroke(unzipped , p , l , s):
+def getAnimStroke(unzipped , p , l , s , startTime = None , endTime = None):
 
     pages = getPagesRange(unzipped)
     layers = getLayersRange(unzipped)
@@ -175,14 +177,23 @@ def getAnimStroke(unzipped , p , l , s):
 
     additional = []
 
-    if(end_of_page):
-        additional = [result[-1] for _ in range(ENDPAUSE)]
-    elif(end_of_layer):
-        additional = [result[-1] for _ in range(LAYERPAUSE)]
+    if((len(WAITTIMES) == 0) or (startTime is None) or (endTime is None)):
+        if(end_of_page):
+            additional = [result[-1] for _ in range(ENDPAUSE)]
+        elif(end_of_layer):
+            additional = [result[-1] for _ in range(LAYERPAUSE)]
+    else:
+        if(end_of_layer):
+            extraTime = (endTime - startTime) - (float(len(result)) / float(FRATE))
+            if(extraTime > 0):
+                extraFrames = int(extraTime * float(FRATE))
+                additional = [result[-1] for _ in range(extraFrames)]
+            else:
+                sys.stderr.write("\n\nWARNING Too little time for page. page , layer , stroke : " + str(p) + " " + str(l) + " " + str(s) + "\n\n")
 
     return result + additional
 
-def getStrokeAndBefore(unzipped , p , l , s):
+def getStrokeAndBefore(unzipped , p , l , s , startTime = None , endTime = None):
 
     pages = getPagesRange(unzipped)
     layers = getLayersRange(unzipped)
@@ -221,11 +232,20 @@ def getStrokeAndBefore(unzipped , p , l , s):
     result = list(map(lambda x : preambule + x + postambule , splitS))
 
     additional = []
-
-    if(end_of_page):
-        additional = [result[-1] for _ in range(ENDPAUSE)]
-    elif(end_of_layer):
-        additional = [result[-1] for _ in range(LAYERPAUSE)]
+    
+    if((len(WAITTIMES) == 0) or (startTime is None) or (endTime is None)):
+        if(end_of_page):
+            additional = [result[-1] for _ in range(ENDPAUSE)]
+        elif(end_of_layer):
+            additional = [result[-1] for _ in range(LAYERPAUSE)]
+    else:
+        if(end_of_layer):
+            extraTime = (endTime - startTime) - (float(len(result)) / float(FRATE))
+            if(extraTime > 0):
+                extraFrames = int(extraTime * float(FRATE))
+                additional = [result[-1] for _ in range(extraFrames)]
+            else:
+                sys.stderr.write("\n\nWARNING Too little time for page. page , layer , stroke : " + str(p) + " " + str(l) + " " + str(s) + "\n\n")
 
     return result + additional
 
@@ -270,12 +290,18 @@ def splitStrokes(inputpath , outputpath , splitter = getStrokeAndBefore):
 
     pgs = []
 
+    pageNumber = 1
     for ip in getPageIterator(unzipped):
         for il in getLayerIterator(unzipped , ip):
             for si in getStrokeIterator(unzipped , ip , il):
                 sys.stdout.write("\r")
                 sys.stdout.write("splitting ... page = " + str(ip) + " , layer = " + str(il) + " , stroke = " + str(si) + "           ")
-                pgs += splitter(unzipped , ip , il , si)  
+                sT = float(len(pgs)) / float(FRATE)
+                eT = None
+                if(pageNumber in WAITTIMES):
+                    eT = WAITTIMES[pageNumber]
+                pgs += splitter(unzipped , ip , il , si , startTime = sT , endTime = eT)  
+            pageNumber += 1
 
     if not os.path.exists(outputpath):
         os.mkdir(outputpath)
@@ -326,6 +352,10 @@ if(__name__ == "__main__"):
     parser.add_argument("--skipevery" , "-s" , help = "Take one stroke coordinate every copuple of coordinates for frames. By default 8.")
     parser.add_argument("--animate" , "-a" , action = "store_true" , help = "Use different method for splitting presentation. Layers are not placed on top of one another but animated. One layer at a time, the first layer appears on all frames.")
     parser.add_argument("--svg" , "-v" , action = "store_true" , help = "Save frames in svg format instead of png.")
+    parser.add_argument("--wait" , "-w" , help = """Path to file with wait times for pages. 
+    Each line has the following format: <page number starting from 1> <hours>:<minutes>:<seconds>:<hundredths of a second>. 
+    Page numbering is consistent with xournal's --export-layers-progressively.
+    Lines containig # will be ignored.""")
     args = parser.parse_args()
 
     if(args.hres is not None):
@@ -354,6 +384,14 @@ if(__name__ == "__main__"):
 
     if(args.svg):
         FRAMEFORMAT = True
+
+    if(args.wait is not None):
+        with open(args.wait , "r") as f:
+            for line in f.readlines():
+                if("#" not in line):
+                    pageW , restW = line.split()
+                    hhW , mmW , ssW , ffW = restW.split(":")
+                    WAITTIMES.update({int(pageW) : float(hhW) * 3600.0 + float(mmW) * 60.0 + float(ssW) + float(ffW) * 0.01})
     
     if not subprocess.run(["xournalpp" , "--version"] , capture_output = True).returncode == 0:
         print("xournalpp not available, exiting.")
