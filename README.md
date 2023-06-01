@@ -71,11 +71,11 @@ $ xopptomp4 -h
 This provides a list of options with descriptions and default values:
 
 ```
-usage: xopptomp4 [-h] [--hres HRES] [--frate FRATE] [--pause PAUSE] [--images IMAGES] [--fchange] [--nthreads NTHREADS]
-                 [--endpause ENDPAUSE] [--layerpause LAYERPAUSE] [--skipevery SKIPEVERY] [--animate] [--svg]
+usage: xopptomp4 [-h] [--hres HRES] [--frate FRATE] [--pause PAUSE] [--images IMAGES] [--fchange] [--nthreads NTHREADS] [--endpause ENDPAUSE]
+                 [--layerpause LAYERPAUSE] [--skipevery SKIPEVERY] [--animate] [--svg] [--wait WAIT]
                  input output
 
-Turn xojp file into a mp4 video.
+Turn xojp file into a mpeg.
 
 positional arguments:
   input                 Input file.
@@ -99,10 +99,40 @@ options:
                         Frames to pause on end of layer. By default 32.
   --skipevery SKIPEVERY, -s SKIPEVERY
                         Take one stroke coordinate every copuple of coordinates for frames. By default 8.
-  --animate, -a         Use different method for splitting presentation. Layers are not placed on top of one another but animated.
-                        One layer at a time, the first layer appears on all frames.
+  --animate, -a         Use different method for splitting presentation. Layers are not placed on top of one another but animated. One layer at a time,
+                        the first layer appears on all frames.
   --svg, -v             Save frames in svg format instead of png.
+  --wait WAIT, -w WAIT  Path to file with wait times for pages. Each line has the following format: <page number starting from 1>
+                        <hours>:<minutes>:<seconds>:<hundredths of a second>. Page numbering is consistent with xournal's --export-layers-progressively.
+                        Lines containig # will be ignored.
 ```
+
+# synchronizing with sound
+
+This is extremely experimental right now. The suggested workflow for synchronizing with sound is:
+
+1) create a `xournalpp` document for example `document.xopp`
+2) export it to `pdf` using the `--export-layers-progressively` option:
+   `$ xournalpp --export-layers-progressively --create-pdf=document.pdf document.xopp`. 
+3) this will create `document.pdf` with ... 
+   the layers exported progressively ... The page numbers in this document can be used
+   to time the video
+4) record the audion while looking at `document.pdf`
+5) listen to the audio and make a note down specific timestamps in a file, for example `timestamps`, with the format:
+```
+# this is the time <hours>:<minutes>:<seconds>:<hundredths of a second>
+# that the audio for the first page of document.pdf ends
+1 00:00:09:12
+# this is the time <hours>:<minutes>:<seconds>:<hundredths of a second>
+# that the audio for the second page of document.pdf ends
+2 00:00:15:02
+# time the audion for the third page ends, ...
+3 00:00:20:19
+# this is a comment btw
+```
+6) run `xopptomp4` with the option `--wait timestamps` to use the time data in creating the video
+7) use `ffmpeg` (or other software) to join the video and audio, they should be synchronized nicely
+
 # tips
 
 The script takes a long time to render a video, even with multiple threads.
