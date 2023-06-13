@@ -193,6 +193,73 @@ def getAnimStroke(unzipped , p , l , s , startTime = None , endTime = None):
 
     return result + additional
 
+def getStrokeSelected(unzipped , p , l , s , startTime = None , endTime = None):
+
+    pages = getPagesRange(unzipped)
+    layers = getLayersRange(unzipped)
+    strokes = getStrokesRange(unzipped)
+
+    preambuleEnd = pages[0][0]
+    postambuleStart = pages[-1][1]
+
+    layersInPage = filterInRange(pages[p] , layers)
+    pagePostambuleStart , pagePostambuleEnd = layersInPage[-1][1] , pages[p][1]
+    
+    strokesInLayer = filterInRange(layersInPage[l] , strokes)
+    layerPostambuleStart , layerPostambuleEnd = strokesInLayer[-1][1] , layersInPage[l][1]
+
+    end_of_page = (l == len(layersInPage) - 1) and (s == len(strokesInLayer) - 1)
+    end_of_layer = (s == len(strokesInLayer) - 1)
+
+    strokeAfterStart = strokesInLayer[s][1]
+    strokeAfterEnd = strokesInLayer[s + 1][0] if s + 1 < len(strokesInLayer) else strokesInLayer[s][1]
+    
+    startStroke , endStroke = filterInRange(filterInRange(pages[p] , layers)[l] , strokes)[s]
+
+    prePage = pages[0][0]
+    postPage = pages[p - 1][1] if p - 1 >= 0 else pages[0][0]
+    
+    #preambule = unzipped[: prePage] + unzipped[postPage : startStroke]
+    preambule = unzipped[: prePage] + unzipped[postPage : layersInPage[0][0]] 
+
+    for previousLayer in range(l):
+        add = unzipped[layersInPage[previousLayer][0] : layersInPage[previousLayer][1]]
+        if(not '#SKIP#' in add):
+            preambule += add
+
+    preambule += unzipped[layersInPage[l][0] : startStroke]
+
+    postambule = \
+                unzipped[strokeAfterStart : strokeAfterEnd] + \
+                unzipped[layerPostambuleStart : layerPostambuleEnd] + \
+                unzipped[pagePostambuleStart : pagePostambuleEnd] + \
+                unzipped[postambuleStart :]
+
+    preambule = preambule.replace('#SKIP#' , '')
+    postambule = postambule.replace('#SKIP#' , '')
+
+    splitS = splitStrokePath(unzipped[startStroke : endStroke].replace('#SKIP#' , ''))
+
+    result = list(map(lambda x : preambule + x + postambule , splitS))
+
+    additional = []
+    
+    if((len(WAITTIMES) == 0) or (startTime is None) or (endTime is None)):
+        if(end_of_page):
+            additional = [result[-1] for _ in range(ENDPAUSE)]
+        elif(end_of_layer):
+            additional = [result[-1] for _ in range(LAYERPAUSE)]
+    else:
+        if(end_of_layer):
+            extraTime = (endTime - startTime) - (float(len(result)) / float(FRATE))
+            if(extraTime > 0):
+                extraFrames = int(extraTime * float(FRATE))
+                additional = [result[-1] for _ in range(extraFrames)]
+            else:
+                sys.stderr.write("\n\nWARNING Too little time for page. page , layer , stroke : " + str(p) + " " + str(l) + " " + str(s) + "\n\n")
+
+    return result + additional
+
 def getStrokeAndBefore(unzipped , p , l , s , startTime = None , endTime = None):
 
     pages = getPagesRange(unzipped)
@@ -351,6 +418,7 @@ if(__name__ == "__main__"):
     parser.add_argument("--layerpause" , "-l" , help = "Frames to pause on end of layer. By default 32.")
     parser.add_argument("--skipevery" , "-s" , help = "Take one stroke coordinate every copuple of coordinates for frames. By default 8.")
     parser.add_argument("--animate" , "-a" , action = "store_true" , help = "Use different method for splitting presentation. Layers are not placed on top of one another but animated. One layer at a time, the first layer appears on all frames.")
+    parser.add_argument("--marked" , "-m" , action = "store_true" , help = "Use different method for splitting presentation. Layers are not placed on top of one another but animated. Layers marked with \"#SKIP#\" will not show when further layers are drawn.")
     parser.add_argument("--svg" , "-v" , action = "store_true" , help = "Save frames in svg format instead of png.")
     parser.add_argument("--wait" , "-w" , help = """Path to file with wait times for pages. 
     Each line has the following format: <page number starting from 1> <hours>:<minutes>:<seconds>:<hundredths of a second>. 
@@ -425,8 +493,10 @@ if(__name__ == "__main__"):
             print("problem unpacking " + args.input + ", exiting.")
             sys.exit(1)
        
-        if(not args.animate):
-            splitStrokes(args.input, args.output) 
-        else:
+        if(args.animate):
             splitStrokes(args.input, args.output , splitter = getAnimStroke) 
+        elif(args.marked):
+            splitStrokes(args.input, args.output , splitter = getStrokeSelected) 
+        elif(not args.animate):
+            splitStrokes(args.input, args.output) 
 
