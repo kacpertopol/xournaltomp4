@@ -71,8 +71,9 @@ $ xopptomp4 -h
 This provides a list of options with descriptions and default values:
 
 ```
-usage: xopptomp4 [-h] [--hres HRES] [--frate FRATE] [--pause PAUSE] [--images IMAGES] [--fchange] [--nthreads NTHREADS] [--endpause ENDPAUSE]
-                 [--layerpause LAYERPAUSE] [--skipevery SKIPEVERY] [--animate] [--svg] [--wait WAIT]
+usage: xopptomp4 [-h] [--hres HRES] [--frate FRATE] [--pause PAUSE] [--images IMAGES] [--fchange] [--nthreads NTHREADS]
+                 [--endpause ENDPAUSE] [--layerpause LAYERPAUSE] [--skipevery SKIPEVERY] [--animate] [--marked] [--svg] [--printout]
+                 [--wait WAIT]
                  input output
 
 Turn xojp file into a mpeg.
@@ -99,12 +100,15 @@ options:
                         Frames to pause on end of layer. By default 32.
   --skipevery SKIPEVERY, -s SKIPEVERY
                         Take one stroke coordinate every copuple of coordinates for frames. By default 8.
-  --animate, -a         Use different method for splitting presentation. Layers are not placed on top of one another but animated. One layer at a time,
-                        the first layer appears on all frames.
+  --animate, -a         Use different method for splitting presentation. Layers are not placed on top of one another but animated.
+                        One layer at a time, the first layer appears on all frames.
+  --marked, -m          Use different method for splitting presentation. Layers are not placed on top of one another but animated.
+                        Layers marked with "#SKIP#" will not show when further layers are drawn.
   --svg, -v             Save frames in svg format instead of png.
+  --printout, -o        Make printout.
   --wait WAIT, -w WAIT  Path to file with wait times for pages. Each line has the following format: <page number starting from 1>
-                        <hours>:<minutes>:<seconds>:<hundredths of a second>. Page numbering is consistent with xournal's --export-layers-progressively.
-                        Lines containig # will be ignored.
+                        <hours>:<minutes>:<seconds>:<hundredths of a second>. Page numbering is consistent with xournal's --export-
+                        layers-progressively. Lines containig # will be ignored.
 ```
 
 # synchronizing with sound
