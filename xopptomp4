@@ -420,6 +420,7 @@ if(__name__ == "__main__"):
     parser.add_argument("--animate" , "-a" , action = "store_true" , help = "Use different method for splitting presentation. Layers are not placed on top of one another but animated. One layer at a time, the first layer appears on all frames.")
     parser.add_argument("--marked" , "-m" , action = "store_true" , help = "Use different method for splitting presentation. Layers are not placed on top of one another but animated. Layers marked with \"#SKIP#\" will not show when further layers are drawn.")
     parser.add_argument("--svg" , "-v" , action = "store_true" , help = "Save frames in svg format instead of png.")
+    parser.add_argument("--printout" , "-o" , action = "store_true" , help = "Make printout.")
     parser.add_argument("--wait" , "-w" , help = """Path to file with wait times for pages. 
     Each line has the following format: <page number starting from 1> <hours>:<minutes>:<seconds>:<hundredths of a second>. 
     Page numbering is consistent with xournal's --export-layers-progressively.
@@ -476,6 +477,38 @@ if(__name__ == "__main__"):
     if not subprocess.run(["ffmpeg" , "-version"] , capture_output = True).returncode == 0:
         print("ffmpeg not available, exiting.")
         sys.exit(1)   
+
+    if(args.printout):
+        unzipped = getUnzipped(args.input)
+
+        pages = getPagesRange(unzipped)
+        layers = getLayersRange(unzipped)
+        strokes = getStrokesRange(unzipped)
+
+        res = unzipped[0:pages[0][0]]
+
+        for ip in getPageIterator(unzipped):
+            layersInPage = filterInRange(pages[ip] , layers)
+            res += unzipped[pages[ip][0] : layersInPage[0][0]]
+            for il in getLayerIterator(unzipped , ip):
+                layer = unzipped[layersInPage[il][0] : layersInPage[il][1]]
+                if(not '#SKIP#' in layer):
+                    res += layer
+            res += unzipped[layersInPage[-1][1] : pages[ip][1]]
+
+        res += unzipped[pages[-1][1] : ]
+
+        if not os.path.exists(args.output):
+            os.makedirs(args.output)
+
+        with open(os.path.join(args.output , "printout") , 'a') as f:
+            f.write(res)
+    
+        subprocess.run(["gzip" , os.path.join(args.output , "printout")])
+        subprocess.run(["mv" , os.path.join(args.output , "printout" + ".gz") , os.path.join(args.output ,  "printout.xopp")])
+        subprocess.run(["xournalpp" , os.path.join(args.output ,  "printout.xopp") , "--create-pdf=" + os.path.join(args.output ,  "printout.pdf")])
+
+        sys.exit(0)
 
     if(args.fchange):
         if(not FRAMEFORMAT):
